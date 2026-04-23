@@ -12,8 +12,9 @@ import {
   BarChart2, Settings, Bell, ChevronLeft, ChevronRight,
   Activity, Globe, Cpu, AlertCircle, Eye, Zap,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useStockStore, useUIStore } from '@/store';
-import { useMacroSnapshot, formatPrice, formatPct, formatMarketCap } from '@/lib/api';
+import { useMacroSnapshot, formatPrice, formatPct, formatMarketCap, useStockSearch } from '@/lib/api';
 import type { StockInfo, MacroSnapshot } from '@/types';
 
 // ----------------------------------------------------------
@@ -32,6 +33,7 @@ const POPULAR_TICKERS = [
 ];
 
 export function Sidebar() {
+  const router = useRouter();
   const { sidebarOpen, toggleSidebar } = useUIStore();
   const {
     selectedTicker, setSelectedTicker,
@@ -41,16 +43,19 @@ export function Sidebar() {
 
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const { data: searchResults } = useStockSearch(search, 24);
 
   const handleSelect = (ticker: string) => {
     setSelectedTicker(ticker);
     addRecentSearch(ticker);
     setSearch('');
+    router.push(`/stock/${ticker}`);
   };
 
   const filteredPopular = POPULAR_TICKERS.filter((t) =>
     t.ticker.includes(search.toUpperCase()) || t.name.toLowerCase().includes(search.toLowerCase())
   );
+  const showSearchResults = search.trim().length > 0 && (searchResults?.value?.length || 0) > 0;
 
   return (
     <motion.aside
@@ -131,22 +136,38 @@ export function Sidebar() {
             <p className="text-[10px] text-text-muted uppercase tracking-widest px-2 py-2">
               {search ? 'Sonuçlar' : 'Popüler'}
             </p>
-            {filteredPopular.map((item) => (
-              <SidebarTickerRow
-                key={item.ticker}
-                ticker={item.ticker}
-                name={item.name}
-                change={item.change}
-                isActive={selectedTicker === item.ticker}
-                isWatched={watchlist.includes(item.ticker)}
-                onSelect={handleSelect}
-                onToggleWatch={() =>
-                  watchlist.includes(item.ticker)
-                    ? removeFromWatchlist(item.ticker)
-                    : addToWatchlist(item.ticker)
-                }
-              />
-            ))}
+            {showSearchResults
+              ? searchResults!.value.map((item) => (
+                  <SidebarTickerRow
+                    key={item.ticker}
+                    ticker={item.ticker}
+                    name={item.company_name || undefined}
+                    isActive={selectedTicker === item.ticker}
+                    isWatched={watchlist.includes(item.ticker)}
+                    onSelect={handleSelect}
+                    onToggleWatch={() =>
+                      watchlist.includes(item.ticker)
+                        ? removeFromWatchlist(item.ticker)
+                        : addToWatchlist(item.ticker)
+                    }
+                  />
+                ))
+              : filteredPopular.map((item) => (
+                  <SidebarTickerRow
+                    key={item.ticker}
+                    ticker={item.ticker}
+                    name={item.name}
+                    change={item.change}
+                    isActive={selectedTicker === item.ticker}
+                    isWatched={watchlist.includes(item.ticker)}
+                    onSelect={handleSelect}
+                    onToggleWatch={() =>
+                      watchlist.includes(item.ticker)
+                        ? removeFromWatchlist(item.ticker)
+                        : addToWatchlist(item.ticker)
+                    }
+                  />
+                ))}
           </>
         )}
 

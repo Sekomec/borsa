@@ -7,6 +7,7 @@ import type {
   PredictionRequest,
   PredictionResponse,
   SentimentResponse,
+  StockSearchResult,
   StockInfo,
   TechnicalAnalysisResponse,
   Timeframe,
@@ -70,6 +71,16 @@ export const api = {
       return null;
     }
   },
+  searchStocks: async (q: string, limit: number = 20): Promise<StockSearchResult[]> => {
+    if (!q.trim()) return [];
+    const res = await fetchJSON<any>(
+      `/api/v1/stocks/search?q=${encodeURIComponent(q)}&limit=${limit}`
+    );
+    // Backend may return either a raw array or {"value":[...], "Count": N} depending on host/serializer.
+    if (Array.isArray(res)) return res as StockSearchResult[];
+    if (res && Array.isArray(res.value)) return res.value as StockSearchResult[];
+    return [];
+  },
 };
 
 function useAsync<T>(fn: () => Promise<T>, deps: any[]) {
@@ -126,6 +137,10 @@ export function useStockInfo(ticker: string) {
 
 export function useQuote(ticker: string) {
   return useAsync(() => api.getQuote(ticker), [ticker]);
+}
+
+export function useStockSearch(q: string, limit: number = 20) {
+  return useAsync(() => api.searchStocks(q, limit), [q, limit]);
 }
 
 export function formatPrice(v?: number | null) {

@@ -13,6 +13,7 @@ import {
 import { api, formatPrice, formatPct } from '@/lib/api';
 import { usePredictionStore, useChartStore } from '@/store';
 import type { PredictionResponse, Timeframe, Direction } from '@/types';
+import EventBadge from '@/components/dashboard/EventBadge';
 
 const TIMEFRAMES: { value: Timeframe; label: string; desc: string }[] = [
   { value: '1d', label: '1 Gün',   desc: 'Kısa vadeli' },
@@ -235,6 +236,8 @@ function PredictionCard({ prediction }: { prediction: PredictionResponse }) {
             </div>
           </div>
         )}
+
+        <EventBadge eventContext={prediction.event_context} />
 
         {/* Anomali açıklama */}
         {prediction.anomaly_detected && prediction.anomaly_description && (

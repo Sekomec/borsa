@@ -36,6 +36,12 @@ export interface StockInfo {
   market_cap?: number;
 }
 
+export interface StockSearchResult {
+  ticker: string;
+  company_name?: string | null;
+  exchange?: string | null;
+}
+
 export interface SentimentResponse {
   ticker: string;
   overall_score: number;
@@ -86,6 +92,7 @@ export interface PredictionRequest {
   include_sentiment?: boolean;
   include_fundamental?: boolean;
   include_macro?: boolean;
+  include_events?: boolean;
 }
 
 export interface PredictionResponse {
@@ -111,6 +118,18 @@ export interface PredictionResponse {
   ensemble_weights?: Record<string, number> | null;
   model_contributions?: Record<string, number> | null;
   explanation?: string | null;
+  event_context?: {
+    next_earnings_date?: string | null;
+    days_to_next_earnings?: number | null;
+    earnings_window?: boolean;
+    next_fomc_date?: string | null;
+    days_to_next_fomc?: number | null;
+    fomc_window?: boolean;
+    next_cpi_date?: string | null;
+    days_to_next_cpi?: number | null;
+    cpi_window?: boolean;
+    combined_vol_multiplier?: number;
+  } | null;
   disclaimer: string;
 }
 

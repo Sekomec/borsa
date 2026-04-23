@@ -10,14 +10,18 @@ from typing import List, Optional
 import structlog
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from fastapi.responses import ORJSONResponse
+from sqlalchemy import text
+from datetime import date as _date
 
 from app.models.schemas import PredictionRequest, PredictionResponse
 from app.core.cache import cache_manager, CacheNamespace
+from app.models.database import get_db
 from app.services.data_fetchers.market_data import market_data_service
 from app.services.data_fetchers.macro import macro_service
 from app.services.data_fetchers.sentiment import sentiment_service
 from app.services.data_fetchers.fundamental import fundamental_service
 from app.services.analysis.technical import technical_service
+from app.services.data_fetchers.events import get_event_context
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -40,6 +44,43 @@ async def get_stock_info(ticker: str):
 async def get_quote(ticker: str):
     ticker = ticker.strip().upper()
     return await market_data_service.get_current_price(ticker)
+
+
+@router.get("/search")
+async def search_stocks(
+    q: str = Query(..., min_length=1, max_length=50),
+    limit: int = Query(default=20, ge=1, le=50),
+):
+    """
+    Basit ticker/şirket adı araması.
+    Kaynak: DB'deki stock_info tablosu (seed + ileride genişletilebilir).
+    """
+    query = q.strip()
+    pattern = f"%{query}%"
+
+    sql = text(
+        """
+        SELECT ticker, company_name, exchange
+        FROM stock_info
+        WHERE ticker ILIKE :pattern OR company_name ILIKE :pattern
+        ORDER BY
+          CASE WHEN ticker ILIKE :starts THEN 0 ELSE 1 END,
+          ticker ASC
+        LIMIT :limit
+        """
+    )
+
+    async with get_db() as session:
+        rows = (await session.execute(sql, {"pattern": pattern, "starts": f"{query}%", "limit": limit})).mappings().all()
+
+    return [
+        {
+            "ticker": r.get("ticker"),
+            "company_name": r.get("company_name"),
+            "exchange": r.get("exchange"),
+        }
+        for r in rows
+    ]
 
 
 @router.get("/{ticker}/technical")
@@ -78,7 +119,12 @@ async def predict_stock(
     timeframe = request.timeframe
 
     # Cache kontrolü
-    cache_key = f"{ticker}:{timeframe}:prediction"
+    _today = _date.today().isoformat()
+    cache_key = (
+        f"{ticker}:{timeframe}:prediction"
+        f":events={int(getattr(request, 'include_events', True))}"
+        f":{_today}"
+    )
     cached = await cache_manager.get(CacheNamespace.PREDICTION, cache_key)
     if cached:
         logger.debug("Tahmin cache'den döndürüldü.", ticker=ticker, timeframe=timeframe)
@@ -194,6 +240,28 @@ async def predict_stock(
             "macro_risk_score": macro_data.get("macro_risk_score"),
         } if macro_data and request.include_macro else None,
     }
+
+    # Event-aware adjustment (volatility widening + risk floor)
+    event_ctx = None
+    if getattr(request, "include_events", True):
+        try:
+            event_ctx = await get_event_context(ticker)
+            mult = float(event_ctx.get("combined_vol_multiplier") or 1.0)
+            if mult > 1.0 and response.get("lower_bound") is not None and response.get("upper_bound") is not None:
+                pred = float(response["predicted_price"])
+                low = float(response["lower_bound"])
+                high = float(response["upper_bound"])
+                response["lower_bound"] = pred - (pred - low) * mult
+                response["upper_bound"] = pred + (high - pred) * mult
+
+            if event_ctx.get("earnings_window") or event_ctx.get("fomc_window") or event_ctx.get("cpi_window"):
+                if response.get("risk_level") == "low":
+                    response["risk_level"] = "medium"
+
+            response["event_context"] = event_ctx
+        except Exception as e:
+            logger.warning("Event context alınamadı.", ticker=ticker, error=str(e))
+            response["event_context"] = None
 
     # Cache'e yaz
     await cache_manager.set(

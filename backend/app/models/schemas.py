@@ -19,6 +19,7 @@ class PredictionRequest(BaseModel):
     include_sentiment: bool = True
     include_fundamental: bool = True
     include_macro: bool = True
+    include_events: bool = Field(default=True, description="Factor upcoming events into forecast")
 
     @field_validator("ticker")
     @classmethod
@@ -53,5 +54,18 @@ class PredictionResponse(BaseModel):
     model_contributions: Optional[dict] = None
     explanation: Optional[str] = None
 
+    class EventContext(BaseModel):
+        next_earnings_date: Optional[str] = None
+        days_to_next_earnings: Optional[int] = None
+        earnings_window: bool = False
+        next_fomc_date: Optional[str] = None
+        days_to_next_fomc: Optional[int] = None
+        fomc_window: bool = False
+        next_cpi_date: Optional[str] = None
+        days_to_next_cpi: Optional[int] = None
+        cpi_window: bool = False
+        combined_vol_multiplier: float = 1.0
+
+    event_context: Optional[EventContext] = None
     disclaimer: str
 

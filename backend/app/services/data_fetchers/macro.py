@@ -159,7 +159,7 @@ class FREDFetcher:
 
         url = f"{self.BASE_URL}/series/observations"
 
-        async with fred_limiter:
+        async with fred_limiter():
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                     if resp.status == 429:
@@ -312,10 +312,10 @@ class FREDFetcher:
         Mevcut makro rejimi tanımlar.
         Tahmin modeli için bağlam sağlar.
         """
-        vix = snapshot.get("vix", 20)
-        ycs = snapshot.get("yield_curve_spread", 1.0)
-        fed_rate = snapshot.get("fed_rate", 3.0)
-        risk_score = snapshot.get("macro_risk_score", 50)
+        vix = snapshot.get("vix") if snapshot.get("vix") is not None else 20
+        ycs = snapshot.get("yield_curve_spread") if snapshot.get("yield_curve_spread") is not None else 1.0
+        fed_rate = snapshot.get("fed_rate") if snapshot.get("fed_rate") is not None else 3.0
+        risk_score = snapshot.get("macro_risk_score") if snapshot.get("macro_risk_score") is not None else 50
 
         if risk_score > 70:
             return "CRISIS"           # Kriz modu (VIX>40, inversiyon)

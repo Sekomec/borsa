@@ -264,7 +264,7 @@ class RedditFetcher:
 
             return texts, scores
 
-        async with reddit_limiter:
+        async with reddit_limiter():
             texts, upvote_scores = await loop.run_in_executor(None, fetch_sync)
 
         if not texts:
@@ -376,7 +376,7 @@ class NewsFetcher:
             "apiKey": self.api_key,
         }
 
-        async with news_api_limiter:
+        async with news_api_limiter():
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{self.BASE_URL}/everything",
