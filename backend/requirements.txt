@@ -1,0 +1,140 @@
+# ============================================================
+# QuantEdge AI — Python Requirements
+# Python 3.11+ gerektirir
+# ============================================================
+
+# ----------------------------
+# Web Framework & API
+# ----------------------------
+fastapi==0.110.0
+uvicorn[standard]==0.27.1
+python-multipart==0.0.9
+httpx==0.27.0
+websockets==12.0
+
+# ----------------------------
+# Database
+# ----------------------------
+sqlalchemy[asyncio]==2.0.28
+asyncpg==0.29.0           # PostgreSQL async driver
+alembic==1.13.1           # Veritabanı migration
+psycopg2-binary==2.9.9    # Sync driver (MLflow için)
+
+# ----------------------------
+# Cache & Task Queue
+# ----------------------------
+redis[hiredis]==5.0.2
+celery[redis]==5.3.6
+flower==2.0.1              # Celery izleme UI
+
+# ----------------------------
+# Vector Database (RAG)
+# ----------------------------
+chromadb==0.4.24
+sentence-transformers==2.6.0
+
+# ----------------------------
+# Data Processing
+# ----------------------------
+pandas==2.2.1
+numpy==1.26.4
+scipy==1.12.0
+polars==0.20.15           # Hızlı DataFrame (Rust tabanlı)
+
+# ----------------------------
+# Financial Data Sources
+# ----------------------------
+yfinance==0.2.36          # Yahoo Finance (fallback)
+alpha-vantage==2.3.1      # Alpha Vantage
+finnhub-python==2.4.20    # Finnhub
+polygon-api-client==1.13.4  # Polygon.io
+fredapi==0.5.1            # FRED API
+praw==7.7.1               # Reddit API
+
+# ----------------------------
+# Technical Analysis
+# ----------------------------
+# NOTE:
+# - `pandas-ta==0.3.14b0` is not reliably available on PyPI for all environments.
+# - `TA-Lib` often requires system-level libs to build.
+# For Docker builds, we use `requirements.docker.txt` instead.
+TA-Lib==0.4.28            # C tabanlı teknik göstergeler (hızlı; lokal kurulum için)
+mplfinance==0.12.10b0
+
+# ----------------------------
+# NLP & Sentiment Analysis
+# ----------------------------
+transformers==4.39.1       # FinBERT için HuggingFace
+torch==2.2.1               # PyTorch (FinBERT backend)
+torchvision==0.17.1
+torchaudio==2.2.1
+newsapi-python==0.2.7      # NewsAPI
+
+# ----------------------------
+# Machine Learning
+# ----------------------------
+scikit-learn==1.4.1
+xgboost==2.0.3
+lightgbm==4.3.0
+statsmodels==0.14.1        # ARIMA, GARCH
+
+# ----------------------------
+# Deep Learning
+# ----------------------------
+tensorflow==2.16.1         # LSTM modeli için (opsiyonel: PyTorch ile değiştirilebilir)
+keras==3.1.1
+
+# ----------------------------
+# MLOps
+# ----------------------------
+mlflow==2.11.1
+optuna==3.6.1              # Hiperparametre optimizasyonu
+
+# ----------------------------
+# Time Series
+# ----------------------------
+prophet==1.1.5             # Facebook Prophet
+arch==6.3.0               # GARCH modelleri
+
+# ----------------------------
+# Data Validation
+# ----------------------------
+pydantic==2.6.3
+pydantic-settings==2.2.1
+
+# ----------------------------
+# Monitoring & Logging
+# ----------------------------
+prometheus-client==0.20.0
+structlog==24.1.0
+sentry-sdk[fastapi]==1.43.0
+
+# ----------------------------
+# Utilities
+# ----------------------------
+python-dotenv==1.0.1
+tenacity==8.2.3            # Retry mekanizması
+aiohttp==3.9.3             # Async HTTP
+cachetools==5.3.3
+python-dateutil==2.9.0
+pytz==2024.1
+arrow==1.3.0               # Gelişmiş tarih/saat işleme
+orjson==3.9.15             # Hızlı JSON serialization
+
+# ----------------------------
+# Testing
+# ----------------------------
+pytest==8.1.1
+pytest-asyncio==0.23.6
+pytest-cov==5.0.0
+httpx==0.27.0              # Test için async HTTP client
+factory-boy==3.3.0
+
+# ----------------------------
+# Development Tools
+# ----------------------------
+black==24.3.0
+isort==5.13.2
+flake8==7.0.0
+mypy==1.9.0
+pre-commit==3.7.0

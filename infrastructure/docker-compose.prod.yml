@@ -1,0 +1,211 @@
+# ============================================================
+# QuantEdge AI — Docker Compose (Production)
+# ============================================================
+# Geliştirme ortamından farklar:
+#   - Hot-reload yok
+#   - Multi-worker uvicorn
+#   - Next.js standalone build
+#   - SSL/TLS nginx
+#   - Resource limits
+#   - Health check'ler
+#   - Restart politikası
+
+networks:
+  quantedge_prod:
+    driver: bridge
+
+volumes:
+  postgres_data_prod:
+  redis_data_prod:
+  chroma_data_prod:
+  mlflow_data_prod:
+  model_artifacts_prod:
+  nginx_certs:
+
+services:
+
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: qe_prod_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+      - ../scripts/init_timescale.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - quantedge_prod
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: qe_prod_redis
+    restart: always
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-changeme}
+    volumes:
+      - redis_data_prod:/data
+    networks:
+      - quantedge_prod
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: qe_prod_chroma
+    restart: always
+    volumes:
+      - chroma_data_prod:/chroma/chroma
+    networks:
+      - quantedge_prod
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: qe_prod_backend
+    restart: always
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      - CHROMA_HOST=chromadb
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    env_file:
+      - ../.env
+    volumes:
+      - model_artifacts_prod:/app/models/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - quantedge_prod
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 4g
+          cpus: '2.0'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  celery_worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: qe_prod_celery
+    restart: always
+    env_file:
+      - ../.env
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+    volumes:
+      - model_artifacts_prod:/app/models/artifacts
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - quantedge_prod
+    command: >
+      celery -A app.tasks.celery_app worker
+      --loglevel=warning
+      --concurrency=4
+      --queues=data_fetch,ml_prediction,default
+    deploy:
+      resources:
+        limits:
+          memory: 6g
+          cpus: '4.0'
+
+  celery_beat:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: qe_prod_beat
+    restart: always
+    env_file:
+      - ../.env
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - quantedge_prod
+    command: celery -A app.tasks.celery_app beat --loglevel=warning
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: qe_prod_frontend
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://api.quantedge.example.com}
+    networks:
+      - quantedge_prod
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: qe_prod_mlflow
+    restart: always
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    volumes:
+      - mlflow_data_prod:/mlflow/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - quantedge_prod
+
+  nginx:
+    image: nginx:alpine
+    container_name: qe_prod_nginx
+    restart: always
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - nginx_certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - quantedge_prod

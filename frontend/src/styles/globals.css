@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: theme('colors.surface-0');
+  color: theme('colors.text-primary');
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
+}
+
+/* Simple component utilities used by provided UI */
+.card {
+  @apply bg-surface-1 border border-border-subtle rounded-2xl;
+}
+
+.skeleton {
+  @apply bg-surface-3 animate-pulse rounded-lg;
+}
+
+.input {
+  @apply w-full bg-surface-3 border border-border-subtle rounded-lg text-text-primary placeholder:text-text-muted outline-none;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-accent-cyan/20 border border-accent-cyan/40 text-accent-cyan hover:bg-accent-cyan/30 transition-all text-sm font-semibold;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-surface-3 border border-border-subtle text-text-secondary hover:text-text-primary hover:border-border-default transition-all;
+}
+
+.badge {
+  @apply inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs;
+}
+
+.badge-bull {
+  @apply badge bg-bull/10 border-bull/20 text-bull;
+}
+.badge-bear {
+  @apply badge bg-bear/10 border-bear/20 text-bear;
+}
+.badge-neutral {
+  @apply badge bg-neutral/10 border-neutral/20 text-text-secondary;
+}
+
+.score-bar {
+  @apply relative h-2 rounded-full bg-surface-4 overflow-hidden;
+}
+.score-bar-fill {
+  @apply h-full rounded-full;
+}
+
+.signal-bar {
+  background: linear-gradient(90deg, rgba(239,68,68,0.6) 0%, rgba(107,114,128,0.35) 50%, rgba(16,185,129,0.6) 100%);
+}
+
+.bg-accent-gradient {
+  background: radial-gradient(120% 120% at 30% 20%, rgba(0,212,255,0.35) 0%, rgba(0,212,255,0.08) 55%, rgba(0,0,0,0) 100%);
+}
+
+.bg-bull-gradient {
+  background: radial-gradient(120% 120% at 20% 20%, rgba(16,185,129,0.10) 0%, rgba(0,0,0,0) 60%);
+}
+.bg-bear-gradient {
+  background: radial-gradient(120% 120% at 20% 20%, rgba(239,68,68,0.10) 0%, rgba(0,0,0,0) 60%);
+}
+
+/* Scrolling ticker (optional) */
+.ticker-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+.ticker-inner {
+  animation: ticker 30s linear infinite;
+}
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+

@@ -1,0 +1,74 @@
+# ============================================================
+# QuantEdge AI — Prometheus Konfigürasyonu
+# ============================================================
+# Başlatma: docker compose up -d
+# Erişim: http://localhost:9090
+# Grafana: http://localhost:3001
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  scrape_timeout:      10s
+
+  external_labels:
+    monitor: 'quantedge-monitor'
+    environment: 'development'
+
+# ============================================================
+# ALERT RULES
+# ============================================================
+rule_files:
+  - "alerts/*.yml"
+
+# ============================================================
+# SCRAPE TARGETS
+# ============================================================
+scrape_configs:
+
+  # FastAPI Backend — /metrics endpoint
+  - job_name: 'quantedge_backend'
+    static_configs:
+      - targets: ['backend:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'quantedge-backend'
+
+  # Prometheus kendi kendini izle
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Redis Exporter (isteğe bağlı)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+
+  # PostgreSQL Exporter (isteğe bağlı)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    scrape_interval: 30s
+
+  # Node Exporter — sistem metrikleri (isteğe bağlı)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+
+# ============================================================
+# KEY METRİKLER
+# ============================================================
+# http_requests_total{method, endpoint, status_code}
+# http_request_duration_seconds{method, endpoint}
+# prediction_requests_total{ticker, timeframe, direction}
+# prediction_latency_seconds{ticker, timeframe}
+# data_fetch_errors_total{source, ticker}
+# celery_tasks_total{task_name, state}
+# cache_hits_total{namespace}
+# cache_misses_total{namespace}
+# model_prediction_confidence{ticker, timeframe, model}
+# anomaly_detections_total{severity}

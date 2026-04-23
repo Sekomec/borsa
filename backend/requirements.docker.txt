@@ -1,0 +1,60 @@
+# ============================================================
+# QuantEdge AI — Docker Requirements (lean & buildable)
+# ============================================================
+# This file is intentionally smaller than requirements.txt so
+# `docker compose build` stays reliable on slim images.
+#
+# If you want the full ML stack locally, use requirements.txt.
+
+# Web Framework & API
+fastapi==0.110.0
+uvicorn[standard]==0.27.1
+pydantic-settings==2.2.1
+python-multipart==0.0.9
+httpx==0.27.0
+websockets==12.0
+
+# Database
+sqlalchemy[asyncio]==2.0.28
+asyncpg==0.29.0
+alembic==1.13.1
+psycopg2-binary==2.9.9
+
+# Cache & Task Queue
+redis[hiredis]==5.0.2
+celery[redis]==5.3.6
+flower==2.0.1
+
+# Data / Utilities (used by market data + feature engineering)
+pandas==2.2.1
+numpy==1.26.4
+scipy==1.12.0
+
+# Financial data sources
+yfinance==0.2.36
+alpha-vantage==2.3.1
+finnhub-python==2.4.20
+polygon-api-client==1.13.4
+fredapi==0.5.1
+praw==7.7.1
+
+# ML (kept minimal)
+scikit-learn==1.4.2
+statsmodels==0.14.1
+arch==6.3.0
+
+# Monitoring & Logging
+prometheus-client==0.20.0
+structlog==24.1.0
+sentry-sdk[fastapi]==1.43.0
+
+# Utilities
+python-dotenv==1.0.1
+tenacity==8.2.3
+aiohttp==3.9.3
+cachetools==5.3.3
+python-dateutil==2.9.0
+pytz==2024.1
+arrow==1.3.0
+orjson==3.9.15
+
