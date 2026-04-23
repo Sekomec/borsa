@@ -258,17 +258,25 @@ class EnsembleEngine:
         # --- Ağırlıklı ortalama log-return ---
         ensemble_return = sum(v * norm_weights[k] for k, v in predictions.items())
 
+        # --- Ufuk (timeframe) ölçeği ---
+        # Model çıktıları log-return varsayımıyla "birim adım" olarak ele alınıyor.
+        # Timeframe büyüdükçe (1mo, 3mo, 1y) aynı günlük getiri daha uzun ufukta
+        # farklı hedef fiyat üretmelidir. Aksi halde tüm timeframe'ler aynı hedefi verir.
+        horizon_steps = {"1d": 1, "1w": 5, "1mo": 21, "3mo": 63, "1y": 252}
+        h = horizon_steps.get(timeframe, 1)
+        horizon_return = ensemble_return * h
+
         # --- Fiyat tahmini ---
         if current_price:
-            predicted_price = float(current_price * np.exp(ensemble_return))
+            predicted_price = float(current_price * np.exp(horizon_return))
             predicted_return_pct = (predicted_price / current_price - 1) * 100
         else:
             predicted_price = None
-            predicted_return_pct = ensemble_return * 100
+            predicted_return_pct = horizon_return * 100
 
         # --- Güven aralığı ---
         lower_bound, upper_bound = self._calculate_confidence_interval(
-            ensemble_return,
+            horizon_return,
             current_price,
             lstm_uncertainty,
             arima_forecast,
@@ -372,7 +380,7 @@ class EnsembleEngine:
 
     def _calculate_confidence_interval(
         self,
-        ensemble_return: float,
+        horizon_return: float,
         current_price: Optional[float],
         lstm_uncertainty: Optional[Tuple],
         arima_forecast: Optional[Dict],
@@ -402,8 +410,8 @@ class EnsembleEngine:
         scaled_vol = vol * np.sqrt(h)
 
         # %90 güven aralığı (1.645 sigma)
-        lower = current_price * np.exp(ensemble_return - 1.645 * scaled_vol)
-        upper = current_price * np.exp(ensemble_return + 1.645 * scaled_vol)
+        lower = current_price * np.exp(horizon_return - 1.645 * scaled_vol)
+        upper = current_price * np.exp(horizon_return + 1.645 * scaled_vol)
 
         return float(lower), float(upper)
 

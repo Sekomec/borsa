@@ -42,10 +42,10 @@ class _SimpleLimiter:
 
 
 # Global limiters used by fetchers
-polygon_limiter = _SimpleLimiter(concurrency=1)()
-alpha_vantage_limiter = _SimpleLimiter(concurrency=1)()
-finnhub_limiter = _SimpleLimiter(concurrency=2)()
-fred_limiter = _SimpleLimiter(concurrency=2)()
-reddit_limiter = _SimpleLimiter(concurrency=1)()
-news_api_limiter = _SimpleLimiter(concurrency=1)()
+polygon_limiter = _SimpleLimiter(concurrency=1)
+alpha_vantage_limiter = _SimpleLimiter(concurrency=1)
+finnhub_limiter = _SimpleLimiter(concurrency=2)
+fred_limiter = _SimpleLimiter(concurrency=2)
+reddit_limiter = _SimpleLimiter(concurrency=1)
+news_api_limiter = _SimpleLimiter(concurrency=1)
 

@@ -46,7 +46,9 @@ services:
     networks:
       - quantedge_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-quantedge}"]
+      # pg_isready varsayılan olarak DB ismini kullanıcı adı kabul eder (örn: "quantedge").
+      # Bizim DB adımız POSTGRES_DB (default: quantedge_db), bu yüzden explicit -d veriyoruz.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-quantedge} -d ${POSTGRES_DB:-quantedge_db}"]
       interval: 10s
       timeout: 5s
       retries: 5

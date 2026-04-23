@@ -28,6 +28,28 @@ from app.utils.retry import async_retry, polygon_limiter, alpha_vantage_limiter,
 logger = structlog.get_logger()
 
 
+def _iso8601_utc(dt: datetime) -> str:
+    """
+    JSON/JS tarafında problemsiz parse edilebilmesi için ISO-8601 UTC string üret.
+    (Cache katmanı json.dumps(default=str) yaptığı için datetime -> 'YYYY-MM-DD HH:MM:SS' olabiliyor.)
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=None).isoformat() + "Z"
+    return dt.astimezone(tz=None).isoformat()
+
+
+def _normalize_bars(bars: List[Dict]) -> List[Dict]:
+    """Timestamp alanını ISO-8601 string'e çevirir (chart uyumluluğu için)."""
+    normalized: List[Dict] = []
+    for b in bars:
+        bb = dict(b)
+        ts = bb.get("timestamp")
+        if isinstance(ts, datetime):
+            bb["timestamp"] = _iso8601_utc(ts)
+        normalized.append(bb)
+    return normalized
+
+
 # ----------------------------------------------------------
 # POLYGON.IO FETCHER (Birincil Kaynak)
 # ----------------------------------------------------------
@@ -95,7 +117,7 @@ class PolygonFetcher:
         url = f"{self.BASE_URL}/aggs/ticker/{ticker}/range/{multiplier}/{span}/{start}/{end}"
         params = {"adjusted": "true", "sort": "asc", "limit": limit}
 
-        async with polygon_limiter:
+        async with polygon_limiter():
             session = await self._get_session()
             async with session.get(url, params=params) as resp:
                 if resp.status == 429:
@@ -134,26 +156,28 @@ class PolygonFetcher:
         if not self.api_key:
             raise ValueError("POLYGON_API_KEY tanımlı değil.")
 
-        url = f"{self.BASE_URL_V3}/trades/{ticker}"
-        params = {"limit": 1}
+        # Not: Bazı hesaplarda /v3/trades yetkisi 403 dönebilir.
+        # Daha geniş erişime sahip, tek fiyat veren v2 last trade endpoint'i kullanıyoruz.
+        url = f"{self.BASE_URL}/last/trade/{ticker}"
+        params = {"apiKey": self.api_key}
 
-        async with polygon_limiter:
+        async with polygon_limiter():
             session = await self._get_session()
             async with session.get(url, params=params) as resp:
                 if resp.status != 200:
                     raise Exception(f"Polygon quote hatası: {resp.status}")
                 data = await resp.json()
 
-        trades = data.get("results", [])
-        if not trades:
+        results = data.get("results") or {}
+        price = results.get("p")
+        if price is None:
             return None
 
-        trade = trades[0]
         return {
             "ticker": ticker,
-            "price": trade.get("price"),
-            "size": trade.get("size"),
-            "timestamp": trade.get("sip_timestamp"),
+            "price": float(price),
+            "size": results.get("s"),
+            "timestamp": results.get("t"),
             "source": "polygon",
         }
 
@@ -205,7 +229,7 @@ class AlphaVantageFetcher:
             "datatype": "json",
         }
 
-        async with alpha_vantage_limiter:
+        async with alpha_vantage_limiter():
             async with aiohttp.ClientSession() as session:
                 async with session.get(self.BASE_URL, params=params, timeout=aiohttp.ClientTimeout(total=20)) as resp:
                     if resp.status != 200:
@@ -356,7 +380,9 @@ class MockMarketDataFetcher:
         rng = np.random.default_rng(seed)
 
         # Başlangıç fiyatı (ticker'a göre farklı)
-        base_prices = {"AAPL": 175, "TSLA": 250, "MSFT": 380, "GOOGL": 140, "AMZN": 180}
+        # Not: Mock veri "gerçek veri" değildir; sadece UI geliştirme içindir.
+        # Bazı popüler ticker'lar için daha güncel değerlere yakın tutulur.
+        base_prices = {"AAPL": 190, "TSLA": 250, "MSFT": 420, "GOOGL": 340, "AMZN": 185}
         start_price = base_prices.get(ticker, 100 + seed % 200)
 
         prices = [start_price]
@@ -447,9 +473,12 @@ class MarketDataService:
         for name, fetcher in fetchers:
             try:
                 logger.info(f"OHLCV çekiliyor.", source=name, ticker=ticker, timeframe=timeframe)
-                data = await fetcher.get_ohlcv(ticker, timeframe, limit)
+                # Not: Fetcher imzaları farklı (Polygon: start_date/end_date opsiyonel).
+                # Bu yüzden limit'i pozisyonel göndermek Polygon'da start_date'e kayabilir.
+                data = await fetcher.get_ohlcv(ticker, timeframe=timeframe, limit=limit)
 
                 if data:
+                    data = _normalize_bars(data)
                     # Cache'e yaz
                     ttl = self._get_cache_ttl(timeframe)
                     await cache_manager.set(CacheNamespace.OHLCV, cache_key, data, ttl)
@@ -468,7 +497,7 @@ class MarketDataService:
         if settings.is_development:
             logger.warning("Tüm API kaynakları başarısız. Mock veri kullanılıyor.", ticker=ticker)
             mock_data = await self.mock.get_ohlcv(ticker, timeframe, limit)
-            return mock_data
+            return _normalize_bars(mock_data)
 
         logger.error("OHLCV çekilemedi.", ticker=ticker, last_error=str(last_error))
         return None
@@ -490,14 +519,40 @@ class MarketDataService:
             except Exception as e:
                 logger.warning("Anlık fiyat Polygon'dan alınamadı.", ticker=ticker, error=str(e))
 
+            # Bazı Polygon planlarında "last trade/quote" endpoint'leri 403 dönebilir.
+            # Bu durumda aynı API anahtarıyla erişilebilen OHLCV (adjusted) son kapanışını kullan.
+            try:
+                bars = await self.polygon.get_ohlcv(ticker, timeframe="1d", limit=2)
+                if bars:
+                    last = bars[-1]
+                    result = {
+                        "ticker": ticker,
+                        "price": float(last.get("close_price")),
+                        "timestamp": last.get("timestamp"),
+                        "source": "polygon_ohlcv",
+                    }
+                    await cache_manager.set(CacheNamespace.MARKET_DATA, cache_key, result, ttl=60)
+                    return result
+            except Exception as e:
+                logger.warning("Anlık fiyat Polygon OHLCV'den alınamadı.", ticker=ticker, error=str(e))
+
         # yfinance fallback
         try:
             loop = asyncio.get_event_loop()
             ticker_obj = yf.Ticker(ticker)
-            hist = await loop.run_in_executor(None, lambda: ticker_obj.history(period="1d"))
-            if not hist.empty:
-                price = float(hist["Close"].iloc[-1])
-                result = {"ticker": ticker, "price": price, "source": "yfinance"}
+            # fast_info genelde en güvenilir/ hızlı quote kaynağı
+            fast_info = await loop.run_in_executor(None, lambda: getattr(ticker_obj, "fast_info", None))
+            price = None
+            if isinstance(fast_info, dict):
+                price = fast_info.get("last_price") or fast_info.get("regular_market_price")
+
+            if price is None:
+                hist = await loop.run_in_executor(None, lambda: ticker_obj.history(period="1d"))
+                if not hist.empty:
+                    price = float(hist["Close"].iloc[-1])
+
+            if price is not None:
+                result = {"ticker": ticker, "price": float(price), "source": "yfinance"}
                 await cache_manager.set(CacheNamespace.MARKET_DATA, cache_key, result, ttl=60)
                 return result
         except Exception as e:

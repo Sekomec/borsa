@@ -148,20 +148,32 @@ export function formatMarketCap(v?: number | null) {
 }
 
 export function toTVCandles(bars: OHLCVBar[]) {
-  return bars.map((b) => ({
-    time: Math.floor(new Date(b.timestamp).getTime() / 1000),
-    open: b.open_price,
-    high: b.high_price,
-    low: b.low_price,
-    close: b.close_price,
-  }));
+  return bars
+    .map((b) => {
+      const t = new Date(b.timestamp).getTime();
+      return {
+        time: Number.isFinite(t) ? Math.floor(t / 1000) : null,
+        open: b.open_price,
+        high: b.high_price,
+        low: b.low_price,
+        close: b.close_price,
+      };
+    })
+    .filter((c): c is { time: number; open: number; high: number; low: number; close: number } => c.time !== null)
+    .sort((a, b) => a.time - b.time);
 }
 
 export function toTVVolume(bars: OHLCVBar[]) {
-  return bars.map((b) => ({
-    time: Math.floor(new Date(b.timestamp).getTime() / 1000),
-    value: b.volume ?? 0,
-    color: b.close_price >= b.open_price ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)',
-  }));
+  return bars
+    .map((b) => {
+      const t = new Date(b.timestamp).getTime();
+      return {
+        time: Number.isFinite(t) ? Math.floor(t / 1000) : null,
+        value: b.volume ?? 0,
+        color: b.close_price >= b.open_price ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)',
+      };
+    })
+    .filter((v): v is { time: number; value: number; color: string } => v.time !== null)
+    .sort((a, b) => a.time - b.time);
 }
 

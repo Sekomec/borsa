@@ -53,6 +53,25 @@ $$;
 -- ÖRNEK VERİLER (development ortamı için)
 -- ============================================================
 
+-- Not: Bazı tablolar uygulama (SQLAlchemy) tarafından runtime'da oluşturulsa da,
+-- bu init script Docker ilk açılışında çalışır. Bu yüzden seed atacağımız tabloları
+-- burada güvenli şekilde (IF NOT EXISTS) oluşturuyoruz.
+
+-- Temel hisse metadata tablosu (seed için gerekli)
+CREATE TABLE IF NOT EXISTS stock_info (
+  id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  ticker       VARCHAR(20) UNIQUE NOT NULL,
+  company_name VARCHAR(255) NOT NULL,
+  exchange     VARCHAR(50),
+  sector       VARCHAR(100),
+  industry     VARCHAR(150),
+  market_cap   BIGINT,
+  country      VARCHAR(50),
+  currency     VARCHAR(10) DEFAULT 'USD',
+  created_at   TIMESTAMP DEFAULT NOW(),
+  updated_at   TIMESTAMP DEFAULT NOW()
+);
+
 -- Temel hisse listesi
 INSERT INTO stock_info (ticker, company_name, exchange, sector, industry, market_cap, country, currency)
 VALUES
@@ -84,11 +103,11 @@ RETURNS TABLE (
   ticker VARCHAR,
   close_price FLOAT,
   volume BIGINT,
-  timestamp TIMESTAMP
+  ts TIMESTAMP
 ) AS $$
 BEGIN
   RETURN QUERY
-  SELECT si.ticker, od.close_price, od.volume, od.timestamp
+  SELECT si.ticker, od.close_price, od.volume, od.timestamp AS ts
   FROM ohlcv_data od
   JOIN stock_info si ON si.id = od.stock_id
   WHERE si.ticker = p_ticker

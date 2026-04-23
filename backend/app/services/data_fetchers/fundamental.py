@@ -54,7 +54,7 @@ class FinnhubFetcher:
         all_params = {"token": self.api_key, **(params or {})}
         url = f"{self.BASE_URL}/{endpoint}"
 
-        async with finnhub_limiter:
+        async with finnhub_limiter():
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, params=all_params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                     if resp.status == 429:
